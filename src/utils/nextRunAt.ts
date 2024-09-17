@@ -1,11 +1,11 @@
 /* eslint-disable import/first */
 import { DateTime } from 'luxon';
 import * as date from 'date.js';
-import * as debug from 'debug';
+import debug from 'debug';
 import { parseExpression } from 'cron-parser';
-import humanInterval = require('human-interval');
 import { isValidDate } from './isValidDate';
-import type { IJobParameters } from '../types/JobParameters';
+import type { IJobParameters } from '../jobs/interfaces/job-parameters';
+import humanInterval = require('human-interval');
 
 const log = debug('agenda:nextRunAt');
 
@@ -34,6 +34,8 @@ export const computeFromInterval = (attrs: IJobParameters<any>): Date => {
 	let nextRunAt: Date | null = null;
 
 	let error;
+	attrs.repeatInterval = isNaN(Number(attrs.repeatInterval)) ? attrs.repeatInterval : Number(attrs.repeatInterval);
+
 	if (typeof attrs.repeatInterval === 'string') {
 		try {
 			let cronTime = parseExpression(attrs.repeatInterval, cronOptions);

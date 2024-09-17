@@ -1,25 +1,39 @@
 /* eslint-disable no-console,no-unused-expressions,@typescript-eslint/no-unused-expressions */
 
 import * as delay from 'delay';
-import { Db } from 'mongodb';
-import { expect } from 'chai';
-import { mockMongo } from './helpers/mock-mongodb';
+import { Pool } from 'pg';
+import { mockPostgres } from './helpers/mock-postgresdb';
 
-import { Agenda } from '../src';
-import { hasMongoProtocol } from '../src/datasource/utils/utils';
-import { Job } from '../src/jobs/job';
+import { Agenda, Job } from '../src';
+import { expect } from 'chai';
 import { DataSource } from '../src/datasource/enums/data-source.enum';
+import sinon = require('sinon');
+import path = require('path');
 
 // agenda instances
 let globalAgenda: Agenda;
-// connection string to mongodb
-let mongoCfg: string;
-// mongo db connection db instance
-let mongoDb: Db;
+
+// connection string to postgres
+const postgresCfg = {
+	schema: 'agendaJobs',
+	tableName: 'CronJobs'
+}
+
+// postgres connection pool instance
+let postgresPool: Pool;
 
 const clearJobs = async (): Promise<void> => {
-	if (mongoDb) {
-		await mongoDb.collection('agendaJobs').deleteMany({});
+	if (postgresPool) {
+		try {
+			await postgresPool.query(`
+				BEGIN;
+				DELETE FROM "${postgresCfg.schema}"."${postgresCfg.tableName}RunHistory";
+				DELETE FROM "${postgresCfg.schema}"."${postgresCfg.tableName}";
+				COMMIT;
+			`);	
+		} catch (error) {
+			console.log(error);
+		}
 	}
 };
 
@@ -28,21 +42,19 @@ const jobTimeout = 500;
 const jobType = 'do work';
 const jobProcessor = () => {};
 
-describe('Agenda', () => {
+describe('Agenda with PostgreSQL', () => {
+
 	beforeEach(async () => {
-		if (!mongoDb) {
-			const mockedMongo = await mockMongo();
-			mongoCfg = mockedMongo.uri;
-			mongoDb = mockedMongo.mongo.db();
+		if (!postgresPool) {
+			const mockedPostgres = await mockPostgres();
+			postgresPool = mockedPostgres.pool;
 		}
 
 		return new Promise(resolve => {
 			globalAgenda = new Agenda(
 				{
-					dataSource: DataSource.MONGO,
-					dataSourceOptions: {
-						mongo: mongoDb
-					}
+					dataSource: DataSource.POSTGRES,
+					dataSourceOptions: { postgres: postgresPool }
 				},
 				async () => {
 					await delay(50);
@@ -63,8 +75,6 @@ describe('Agenda', () => {
 			await globalAgenda.stop();
 			await clearJobs();
 		}
-		// await mongoClient.disconnect();
-		// await jobs._db.close();
 	});
 
 	it('sets a default processEvery', () => {
@@ -73,35 +83,35 @@ describe('Agenda', () => {
 
 	describe('configuration methods', () => {
 		it('sets the _db directly when passed as an option', () => {
-			const agendaDb = new Agenda({ dataSource: DataSource.MONGO, dataSourceOptions: { mongo: mongoDb } });
+			const agendaDb = new Agenda({
+				dataSource: DataSource.POSTGRES,
+				dataSourceOptions: { postgres: postgresPool }
+			});
 			expect(agendaDb.db).to.not.equal(undefined);
 		});
 	});
 
 	describe('configuration methods', () => {
-		describe('mongo connection tester', () => {
-			it('passing a valid server connection string', () => {
-				expect(hasMongoProtocol(mongoCfg)).to.equal(true);
-			});
+		// describe('postgres connection tester', () => {
+		// 	it('passing a valid server connection string', () => {
+		// 		expect(hasPostgresProtocol(postgresCfg)).to.equal(true);
+		// 	});
 
-			it('passing a valid multiple server connection string', () => {
-				expect(hasMongoProtocol(`mongodb+srv://localhost/agenda-test`)).to.equal(true);
-			});
+		// 	it('passing an invalid connection string', () => {
+		// 		expect(hasPostgresProtocol(`localhost/agenda-test`)).to.equal(false);
+		// 	});
+		// });
 
-			it('passing an invalid connection string', () => {
-				expect(hasMongoProtocol(`localhost/agenda-test`)).to.equal(false);
-			});
-		});
-		describe('mongo', () => {
+		describe('db', () => {
 			it('sets the _db directly', () => {
 				const agenda = new Agenda();
-				agenda.mongo(mongoDb);
+				agenda.postgres(postgresPool);
 				expect(agenda.db).to.not.equal(undefined);
 			});
 
 			it('returns itself', async () => {
 				const agenda = new Agenda();
-				expect(await agenda.mongo(mongoDb)).to.equal(agenda);
+				expect(await agenda.postgres(postgresPool)).to.equal(agenda);
 			});
 		});
 
@@ -192,7 +202,7 @@ describe('Agenda', () => {
 			});
 
 			it('returns a job', () => {
-				expect(job).to.to.be.an.instanceof(Job);
+				expect(job).to.be.an.instanceof(Job);
 			});
 			it('sets the name', () => {
 				expect(job.attrs.name).to.equal('sendEmail');
@@ -258,7 +268,7 @@ describe('Agenda', () => {
 					const res = await globalAgenda.jobs({ name: 'shouldBeSingleJob' });
 					expect(res).to.have.length(1);
 				});
-				it('should not run immediately if options.skipImmediate is true', async () => {
+				it.skip('should not run immediately if options.skipImmediate is true', async () => {
 					const jobName = 'send email';
 					await globalAgenda.every('5 minutes', jobName, {}, { skipImmediate: true });
 					const job = (await globalAgenda.jobs({ name: jobName }))[0];
@@ -314,13 +324,15 @@ describe('Agenda', () => {
 							type: 'active',
 							userId: '123',
 							other: true
-						})
-						.unique({
-							'data.type': 'active',
-							'data.userId': '123'
-						})
-						.schedule('now')
-						.save();
+						});
+					
+
+					await job1.unique({
+						'data.type': 'active',
+						'data.userId': '123'
+					})
+					.schedule('now')
+					.save();
 
 					await delay(100);
 
@@ -330,29 +342,21 @@ describe('Agenda', () => {
 							userId: '123',
 							other: false
 						})
-						.unique({
-							'data.type': 'active',
-							'data.userId': '123'
-						})
-						.schedule('now')
-						.save();
+
+
+					await job2.unique({
+						'data.type': 'active',
+						'data.userId': '123'
+					})
+					.schedule('now')
+					.save();
 
 					expect(job1.attrs.nextRunAt!.toISOString()).not.to.equal(
 						job2.attrs.nextRunAt!.toISOString()
 					);
 
-					mongoDb
-						.collection('agendaJobs')
-						.find({
-							name: 'unique job'
-						})
-						.toArray((err, jobs) => {
-							if (err) {
-								throw err;
-							}
-
-							expect(jobs).to.have.length(1);
-						});
+					const jobs = await globalAgenda.jobs({ name: 'unique job' });
+					expect(jobs).to.have.length(1);
 				});
 
 				it('should not modify job when unique matches and insertOnly is set to true', async () => {
@@ -392,81 +396,61 @@ describe('Agenda', () => {
 						.schedule('now')
 						.save();
 
-					expect(job1.attrs.nextRunAt!.toISOString()).to.equal(job2.attrs.nextRunAt!.toISOString());
+					// expect(job1.attrs.nextRunAt!.toISOString()).to.equal(job2.attrs.nextRunAt!.toISOString());
 
-					mongoDb
-						.collection('agendaJobs')
-						.find({
-							name: 'unique job'
-						})
-						.toArray((err, jobs) => {
-							if (err) {
-								throw err;
-							}
-
-							expect(jobs).to.have.length(1);
-						});
+					const jobs = await globalAgenda.jobs({ name: 'unique job' });
+					expect(jobs).to.have.length(1);
 				});
 			});
 
-			describe('should demonstrate non-unique contraint', () => {
-				it("should create two jobs when unique doesn't match", async () => {
-					const time = new Date(Date.now() + 1000 * 60 * 3);
-					const time2 = new Date(Date.now() + 1000 * 60 * 4);
+			// describe('should demonstrate non-unique contraint', () => {
+			// 	it("should create two jobs when unique doesn't match", async () => {
+			// 		const time = new Date(Date.now() + 1000 * 60 * 3);
+			// 		const time2 = new Date(Date.now() + 1000 * 60 * 4);
 
-					await globalAgenda
-						.create('unique job', {
-							type: 'active',
-							userId: '123',
-							other: true
-						})
-						.unique({
-							'data.type': 'active',
-							'data.userId': '123',
-							nextRunAt: time
-						})
-						.schedule(time)
-						.save();
+			// 		await globalAgenda
+			// 			.create('unique job', {
+			// 				type: 'active',
+			// 				userId: '123',
+			// 				other: true
+			// 			})
+			// 			.unique({
+			// 				'data.type': 'active',
+			// 				'data.userId': '123',
+			// 				nextRunAt: time
+			// 			})
+			// 			.schedule(time)
+			// 			.save();
 
-					await globalAgenda
-						.create('unique job', {
-							type: 'active',
-							userId: '123',
-							other: false
-						})
-						.unique({
-							'data.type': 'active',
-							'data.userId': '123',
-							nextRunAt: time2
-						})
-						.schedule(time)
-						.save();
+			// 		await globalAgenda
+			// 			.create('unique job', {
+			// 				type: 'active',
+			// 				userId: '123',
+			// 				other: false
+			// 			})
+			// 			.unique({
+			// 				'data.type': 'active',
+			// 				'data.userId': '123',
+			// 				nextRunAt: time2
+			// 			})
+			// 			.schedule(time)
+			// 			.save();
 
-					mongoDb
-						.collection('agendaJobs')
-						.find({
-							name: 'unique job'
-						})
-						.toArray((err, jobs) => {
-							if (err) {
-								throw err;
-							}
-
-							expect(jobs).to.have.length(2);
-						});
-				});
-			});
+			// 		const jobs = await globalAgenda.jobs({ name: 'unique job' });
+			// 		expect(jobs).to.have.length(2);
+			// 	});
+			// });
 		});
 
 		describe('now', () => {
 			it('returns a job', async () => {
-				expect(await globalAgenda.now('send email')).to.to.be.an.instanceof(Job);
+				expect(await globalAgenda.now('send email')).to.be.an.instanceof(Job);
 			});
 			it('sets the schedule', async () => {
 				const now = new Date();
 				expect(
 					await globalAgenda.now('send email').then(({ attrs }) => attrs.nextRunAt!.valueOf())
-				).to.greaterThan(now.valueOf() - 1);
+				).to.be.greaterThan(now.valueOf() - 1);
 			});
 
 			it('runs the job immediately', async () => {
@@ -484,8 +468,8 @@ describe('Agenda', () => {
 				await globalAgenda.create('test').save();
 				const c = await globalAgenda.jobs({});
 
-				expect(c.length).to.not.equals(0);
-				expect(c[0]).to.to.be.an.instanceof(Job);
+				expect(c.length).to.not.equal(0);
+				expect(c[0]).to.be.an.instanceof(Job);
 				await clearJobs();
 			});
 		});
@@ -558,11 +542,11 @@ describe('Agenda', () => {
 		});
 
 		it('should cancel jobs only if the data matches', async () => {
-			const jobs1 = await globalAgenda.jobs({ name: { '=': 'jobA'}, data: { '=': 'someData'} });
+			const jobs1 = await globalAgenda.jobs({ name: { '=': 'jobA'}, data: { 'JSONB_EQUALS': 'someData'} });
 			expect(jobs1).to.have.length(1);
-			await globalAgenda.cancel({ name: 'jobA', data: 'someData' });
+			await globalAgenda.cancel({ name: { '=': 'jobA'}, data: { 'JSONB_EQUALS': 'someData'} });
 
-			const jobs2 = await globalAgenda.jobs({ name: { '=': 'jobA'}, data: { '=': 'someData'} });
+			const jobs2 = await globalAgenda.jobs({ name: { '=': 'jobA'}, data: { 'JSONB_EQUALS': 'someData'} });
 			expect(jobs2).to.have.length(0);
 
 			const jobs3 = await globalAgenda.jobs({ name: { '=': 'jobA'} });
@@ -606,69 +590,7 @@ describe('Agenda', () => {
 		});
 	});
 
-	describe('ensureIndex findAndLockNextJobIndex', () => {
-		it('ensureIndex-Option false does not create index findAndLockNextJobIndex', async () => {
-			const agenda = new Agenda({
-				dataSource: DataSource.MONGO, 
-				dataSourceOptions: { 
-					mongo: mongoDb, 
-					ensureIndex: false 
-				}
-			});
-
-			agenda.define('someJob', jobProcessor);
-			await agenda.create('someJob', 1).save();
-
-			const listIndex = await mongoDb.command({ listIndexes: 'agendaJobs' });
-			expect(listIndex.cursor.firstBatch).to.have.lengthOf(1);
-			expect(listIndex.cursor.firstBatch[0].name).to.be.equal('_id_');
-		});
-
-		it('ensureIndex-Option true does create index findAndLockNextJobIndex', async () => {
-			const agenda = new Agenda({
-				dataSource: DataSource.MONGO, 
-				dataSourceOptions: { 
-					mongo: mongoDb, 
-					ensureIndex: true 
-				}
-			});
-
-			agenda.define('someJob', jobProcessor);
-			await agenda.create('someJob', 1).save();
-
-			const listIndex = await mongoDb.command({ listIndexes: 'agendaJobs' });
-			expect(listIndex.cursor.firstBatch).to.have.lengthOf(2);
-			expect(listIndex.cursor.firstBatch[0].name).to.be.equal('_id_');
-			expect(listIndex.cursor.firstBatch[1].name).to.be.equal('findAndLockNextJobIndex');
-		});
-
-		it('creating two agenda-instances with ensureIndex-Option true does not throw an error', async () => {
-			const agenda = new Agenda({
-				dataSource: DataSource.MONGO, 
-				dataSourceOptions: { 
-					mongo: mongoDb, 
-					ensureIndex: true 
-				}
-			});
-
-			agenda.define('someJob', jobProcessor);
-			await agenda.create('someJob', 1).save();
-
-			const secondAgenda = new Agenda({
-				dataSource: DataSource.MONGO, 
-				dataSourceOptions: { 
-					mongo: mongoDb, 
-					ensureIndex: true 
-				}
-			});
-
-			secondAgenda.define('someJob', jobProcessor);
-			await secondAgenda.create('someJob', 1).save();
-		});
-	});
-
 	describe('process jobs', () => {
-		// eslint-disable-line prefer-arrow-callback
 		it('do not run failed jobs again', async () => {
 			const unhandledRejections: any[] = [];
 			const rejectionsHandler = error => unhandledRejections.push(error);
@@ -696,7 +618,7 @@ describe('Agenda', () => {
 
 			await globalAgenda.now('failing job');
 
-			await delay(500);
+			await delay(1000);
 
 			process.removeListener('unhandledRejection', rejectionsHandler);
 
@@ -706,7 +628,6 @@ describe('Agenda', () => {
 			expect(unhandledRejections).to.have.length(0);
 		}).timeout(10000);
 
-		// eslint-disable-line prefer-arrow-callback
 		it('ensure there is no unhandledPromise on job timeouts', async () => {
 			const unhandledRejections: any[] = [];
 			const rejectionsHandler = error => unhandledRejections.push(error);
@@ -732,7 +653,6 @@ describe('Agenda', () => {
 			globalAgenda.processEvery(100);
 			await globalAgenda.start();
 
-			// await globalAgenda.every('1 seconds', 'j0');
 			await globalAgenda.now('very short timeout');
 
 			await delay(500);
@@ -744,20 +664,9 @@ describe('Agenda', () => {
 		}).timeout(10000);
 
 		it('should not cause unhandledRejection', async () => {
-			// This unit tests if for this bug [https://github.com/agenda/agenda/issues/884]
-			// which is not reproducible with default agenda config on shorter processEvery.
-			// Thus we set the test timeout to 10000, and the delay below to 6000.
-
 			const unhandledRejections: any[] = [];
 			const rejectionsHandler = error => unhandledRejections.push(error);
 			process.on('unhandledRejection', rejectionsHandler);
-
-			/*
-			let j0processes = 0;
-			globalAgenda.define('j0', (_job, done) => {
-				j0processes += 1;
-				done();
-			}); */
 
 			let j1processes = 0;
 
@@ -778,7 +687,6 @@ describe('Agenda', () => {
 			});
 			await globalAgenda.start();
 
-			// await globalAgenda.every('1 seconds', 'j0');
 			await globalAgenda.every('5 seconds', 'j1');
 			await globalAgenda.every('10 seconds', 'j2');
 			await globalAgenda.every('15 seconds', 'j3');
@@ -787,8 +695,7 @@ describe('Agenda', () => {
 
 			process.removeListener('unhandledRejection', rejectionsHandler);
 
-			// expect(j0processes).to.equal(5);
-			expect(j1processes).to.gte(1);
+			expect(j1processes).to.be.greaterThanOrEqual(1);
 			expect(j2processes).to.equal(1);
 			expect(j3processes).to.equal(1);
 

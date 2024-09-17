@@ -1,32 +1,33 @@
-import * as debug from 'debug';
+import debug from 'debug';
 import {
 	Collection,
 	Db,
 	Filter,
 	FindOneAndUpdateOptions,
+	MatchKeysAndValues,
 	MongoClient,
 	MongoClientOptions,
-	ObjectId,
-	Sort,
-	UpdateFilter
+	ObjectId, UpdateFilter
 } from 'mongodb';
-import type { Job, JobWithId } from './Job';
-import type { Agenda } from './index';
-import type { IDatabaseOptions, IDbConfig, IMongoOptions } from './types/DbOptions';
-import type { IJobParameters } from './types/JobParameters';
-import { hasMongoProtocol } from './utils/hasMongoProtocol';
+import type { Job, JobWithId } from '../../jobs/job';
+import type { Agenda } from '../../core/agenda';
+import type { IDatabaseOptions, IMongoOptions } from '../interfaces/db-config.interface';
+import type { IJobParameters } from '../../jobs/interfaces/job-parameters';
+import { hasMongoProtocol } from '../utils/utils';
+import type { IJobRepository } from '../interfaces/job-repository.interface';
+import type { QueryCondition } from '../../types/query.type';
 
 const log = debug('agenda:db');
 
 /**
  * @class
  */
-export class JobDbRepository {
+export class MongoJobRepository implements IJobRepository {
 	collection: Collection<IJobParameters>;
 
 	constructor(
 		private agenda: Agenda,
-		private connectOptions: (IDatabaseOptions | IMongoOptions) & IDbConfig
+		private connectOptions: IMongoOptions & IDatabaseOptions
 	) {
 		this.connectOptions.sort = this.connectOptions.sort || { nextRunAt: 1, priority: -1 };
 	}
@@ -35,12 +36,12 @@ export class JobDbRepository {
 		const { connectOptions } = this;
 		if (this.hasDatabaseConfig(connectOptions)) {
 			log('using database config', connectOptions);
-			return this.database(connectOptions.db.address, connectOptions.db.options);
+			return this.database(connectOptions?.db?.address as string);
 		}
 
 		if (this.hasMongoConnection(connectOptions)) {
 			log('using passed in mongo connection');
-			return connectOptions.mongo;
+			return (connectOptions as IMongoOptions)?.mongo as Db;
 		}
 
 		throw new Error('invalid db config, or db config not found');
@@ -50,8 +51,46 @@ export class JobDbRepository {
 		return !!(connectOptions as IMongoOptions)?.mongo;
 	}
 
-	private hasDatabaseConfig(connectOptions: unknown): connectOptions is IDatabaseOptions {
-		return !!(connectOptions as IDatabaseOptions)?.db?.address;
+	private hasDatabaseConfig(connectOptions: unknown): connectOptions is IMongoOptions {
+		return !!(connectOptions as IMongoOptions)?.db?.address;
+	}
+
+	private buildMongoQuery(query: QueryCondition): Filter<IJobParameters> {
+		const mongoQuery: Filter<IJobParameters> = {};
+		for (const [key, value] of Object.entries(query)) {
+			if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+			  const [operator, operatorValue] = Object.entries(value)[0];
+			  switch (operator) {
+				case '=':
+				  mongoQuery[key] = operatorValue;
+				  break;
+				case '!=':
+				  mongoQuery[key] = { $ne: operatorValue };
+				  break;
+				case '>':
+				  mongoQuery[key] = { $gt: operatorValue };
+				  break;
+				case '>=':
+				  mongoQuery[key] = { $gte: operatorValue };
+				  break;
+				case '<':
+				  mongoQuery[key] = { $lt: operatorValue };
+				  break;
+				case '<=':
+				  mongoQuery[key] = { $lte: operatorValue };
+				  break;
+				case 'IN':
+				  mongoQuery[key] = { $in: operatorValue as any[] };
+				  break;
+				case 'NOT IN':
+				  mongoQuery[key] = { $nin: operatorValue as any[] };
+				  break;
+			  }
+			} else {
+			  mongoQuery[key] = value;
+			}
+		}
+		return mongoQuery;
 	}
 
 	async getJobById(id: string) {
@@ -59,16 +98,31 @@ export class JobDbRepository {
 	}
 
 	async getJobs(
-		query: Filter<IJobParameters>,
-		sort: Sort = {},
+		query: QueryCondition,
+		sort: Record<string, 1 | -1> = {},
 		limit = 0,
 		skip = 0
-	): Promise<IJobParameters[]> {
-		return this.collection.find(query).sort(sort).limit(limit).skip(skip).toArray();
+	  ): Promise<IJobParameters[]> {
+		const mongoQuery: Filter<IJobParameters> = this.buildMongoQuery(query);
+	
+		const finalQuery = this.collection.find(mongoQuery).sort(sort);
+		if (limit > 0) {
+			finalQuery.limit(limit);
+		}
+		if (skip > 0) {
+			finalQuery.skip(skip);
+		}
+		return finalQuery.toArray();
 	}
 
-	async removeJobs(query: Filter<IJobParameters>): Promise<number> {
-		const result = await this.collection.deleteMany(query);
+	async removeJobs(query: QueryCondition): Promise<number> {
+		const mongoQuery: Filter<IJobParameters> = this.buildMongoQuery(query);
+		const result = await this.collection.deleteMany(mongoQuery);
+		return result.deletedCount || 0;
+	}
+
+	async purgeJobs(jobNames: string[]): Promise<number> {
+		const result = await this.collection.deleteMany({ name: { $not:  { $in: jobNames } } });
 		return result.deletedCount || 0;
 	}
 
@@ -165,6 +219,7 @@ export class JobDbRepository {
 			JOB_RETURN_QUERY
 		);
 
+		// console.log("NEXT JOB TO RUN", result.value || undefined);
 		return result.value || undefined;
 	}
 
@@ -272,6 +327,25 @@ export class JobDbRepository {
 				`job ${id} (name: ${job.attrs.name}) cannot be updated in the database, maybe it does not exist anymore?`
 			);
 		}
+		
+		if (job.attrs.lastRunAt && job.attrs.lastFinishedAt) {
+			const runHistory = job.attrs.runHistory || [];
+			runHistory.push({
+				runAt: job.attrs.lastRunAt,
+				finishedAt: job.attrs.lastFinishedAt,
+				result: job.attrs.failReason ? 'fail' : 'success',
+				error: job.attrs.failReason || null
+			});
+
+			if (runHistory.length) {
+				await this.collection.updateOne(
+					{ _id: id, name: job.attrs.name },
+					{
+						$set: { runHistory }
+					}
+				);	
+			}
+		}
 	}
 
 	/**
@@ -291,18 +365,23 @@ export class JobDbRepository {
 			// Store job as JSON and remove props we don't want to store from object
 			// _id, unique, uniqueOpts
 			// eslint-disable-next-line @typescript-eslint/no-unused-vars
-			const { _id, unique, uniqueOpts, ...props } = {
+			const { _id, unique, uniqueOpts, ...jobProps } = {
 				...job.toJson(),
 				// Store name of agenda queue as last modifier in job data
 				lastModifiedBy: this.agenda.attrs.name
 			};
+
+			const props: MatchKeysAndValues<IJobParameters> = {
+				...jobProps,
+				lastModifiedBy: this.agenda.attrs.name
+			  };
 
 			log('[job %s] set job props: \n%O', id, props);
 
 			// Grab current time and set default query options for MongoDB
 			const now = new Date();
 			const protect: Partial<IJobParameters> = {};
-			let update: UpdateFilter<IJobParameters> = { $set: props };
+			let update: UpdateFilter<IJobParameters> = { $set: props as any };
 			log('current time stored as %s', now.toISOString());
 
 			// If the job already had an ID, then update the properties of the job
@@ -387,7 +466,7 @@ export class JobDbRepository {
 				'using default behavior, inserting new job via insertOne() with props that were set: \n%O',
 				props
 			);
-			const result = await this.collection.insertOne(props);
+			const result = await this.collection.insertOne(props as any);
 			return this.processDbResult(job, {
 				_id: result.insertedId,
 				...props
@@ -396,5 +475,130 @@ export class JobDbRepository {
 			log('processDbResult() received an error, job was not updated/created');
 			throw error;
 		}
+	}
+
+	async getOverview(): Promise<any[]> {
+		const results = await this.collection
+		  .aggregate([
+			{
+			  $group: {
+				_id: "$name",
+				displayName: { $first: "$name" },
+				meta: {
+				  $addToSet: {
+					type: "$type",
+					priority: "$priority",
+					repeatInterval: "$repeatInterval",
+					repeatTimezone: "$repeatTimezone",
+				  },
+				},
+				total: { $sum: 1 },
+				running: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: [
+						  "$lastRunAt",
+						  { $gt: ["$lastRunAt", "$lastFinishedAt"] },
+						],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+				scheduled: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: ["$nextRunAt", { $gte: ["$nextRunAt", new Date()] }],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+				queued: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: [
+						  "$nextRunAt",
+						  { $gte: [new Date(), "$nextRunAt"] },
+						  { $gte: ["$nextRunAt", "$lastFinishedAt"] },
+						],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+				completed: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: [
+						  "$lastFinishedAt",
+						  { $gt: ["$lastFinishedAt", "$failedAt"] },
+						],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+				failed: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: [
+						  "$lastFinishedAt",
+						  "$failedAt",
+						  { $eq: ["$lastFinishedAt", "$failedAt"] },
+						],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+				repeating: {
+				  $sum: {
+					$cond: [
+					  {
+						$and: [
+						  "$repeatInterval",
+						  { $ne: ["$repeatInterval", null] },
+						],
+					  },
+					  1,
+					  0,
+					],
+				  },
+				},
+			  },
+			},
+		  ])
+		  .toArray();
+		
+		const states = {
+		  total: 0,
+		  running: 0,
+		  scheduled: 0,
+		  queued: 0,
+		  completed: 0,
+		  failed: 0,
+		  repeating: 0,
+		};
+		const totals = { displayName: "All Jobs", ...states };
+	
+		for (const job of results) {
+		  for (const state of Object.keys(states)) {
+			totals[state as keyof typeof states] += job[state];
+		  }
+		}
+	
+		results.unshift(totals);
+		return results;
 	}
 }

@@ -1,14 +1,15 @@
 import { Agenda } from '../../src';
+import { DataSource } from '../../src/datasource/enums/data-source.enum';
 import addTests from './add-tests';
 
-const connStr = process.argv[2];
-const tests = process.argv.slice(3);
+const dbType = process.argv[2] as DataSource;
+const dbConfig = JSON.parse(process.argv[3]);
+const tests = process.argv.slice(4);
 
 const agenda = new Agenda(
 	{
-		db: {
-			address: connStr
-		},
+		dataSource: dbType,
+		dataSourceOptions: dbConfig,
 		processEvery: 100
 	},
 	async () => {

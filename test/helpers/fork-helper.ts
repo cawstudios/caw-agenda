@@ -1,4 +1,5 @@
 import { Agenda } from '../../src';
+import { DataSource } from '../../src/datasource/enums/data-source.enum';
 
 process.on('message', message => {
 	if (message === 'cancel') {
@@ -19,8 +20,12 @@ process.on('message', message => {
 
 	// initialize Agenda in "forkedWorker" mode
 	const agenda = new Agenda({ name: `subworker-${name}`, forkedWorker: true });
-	// connect agenda (but do not start it)
-	await agenda.database(process.env.DB_CONNECTION!);
+	
+	// Update this
+	await agenda.database({
+		dataSource: process.env.DB_TYPE as DataSource,
+		dataSourceOptions: JSON.parse(process.env.DB_CONFIG!)
+	});
 
 	if (!name || !jobId) {
 		throw new Error(`invalid parameters: ${JSON.stringify(process.argv)}`);

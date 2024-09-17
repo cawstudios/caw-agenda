@@ -1,7 +1,7 @@
 // eslint-disable-next-line prettier/prettier
-import type {Job, JobWithId} from './Job';
-import type { IJobParameters } from './types/JobParameters';
-import type { Agenda } from './index';
+import type { Job, JobWithId } from './job';
+import type { IJobParameters } from './interfaces/job-parameters';
+import type { Agenda } from '../index';
 /**
  * @class
  */
@@ -43,7 +43,7 @@ export class JobProcessingQueue {
 		if (removeJobIndex === -1) {
 			// lookup by id
 			removeJobIndex = this._queue.findIndex(
-				j => j.attrs._id?.toString() === job.attrs._id?.toString()
+				j => (j.attrs._id?.toString() === job.attrs._id?.toString() || j.attrs['id']?.toString() === job.attrs['id']?.toString())
 			);
 		}
 		if (removeJobIndex === -1) {
@@ -113,7 +113,7 @@ export class JobProcessingQueue {
 			// and if concurrency limit is not reached yet (actual running jobs is lower than max concurrency)
 			if (
 				def &&
-				!handledJobs.includes(this._queue[i].attrs._id) &&
+				!handledJobs.includes(this._queue[i].attrs._id || this._queue[i].attrs['id']) &&
 				(!status || !def.concurrency || status.running < def.concurrency)
 			) {
 				return true;

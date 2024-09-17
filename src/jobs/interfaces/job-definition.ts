@@ -1,4 +1,4 @@
-import type { Job } from '../Job';
+import type { Job } from '../job';
 
 export interface IJobDefinition<DATA = unknown> {
 	/** max number of locked jobs of this kind */
