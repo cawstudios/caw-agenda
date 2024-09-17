@@ -1194,7 +1194,7 @@ describe('Job with PostgreSQL', () => {
 			expect(errorHasBeenThrown?.message).to.includes("execution of 'lock job' canceled");
 		});
 
-		it.skip('does not process locked jobs', async () => {
+		it('does not process locked jobs', async () => {
 			const history: any[] = [];
 
 			agenda.define(
@@ -1319,7 +1319,7 @@ describe('Job with PostgreSQL', () => {
 	});
 
 	describe('job concurrency', () => {
-		it.skip('should not block a job for concurrency of another job', async () => {
+		it('should not block a job for concurrency of another job', async () => {
 			agenda.processEvery(50);
 
 			const processed: number[] = [];

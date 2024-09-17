@@ -268,7 +268,7 @@ describe('Agenda with PostgreSQL', () => {
 					const res = await globalAgenda.jobs({ name: 'shouldBeSingleJob' });
 					expect(res).to.have.length(1);
 				});
-				it.skip('should not run immediately if options.skipImmediate is true', async () => {
+				it('should not run immediately if options.skipImmediate is true', async () => {
 					const jobName = 'send email';
 					await globalAgenda.every('5 minutes', jobName, {}, { skipImmediate: true });
 					const job = (await globalAgenda.jobs({ name: jobName }))[0];
