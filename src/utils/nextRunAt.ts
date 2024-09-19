@@ -1,6 +1,6 @@
 /* eslint-disable import/first */
 import { DateTime } from 'luxon';
-import * as date from 'date.js';
+import date from 'date.js';
 import debug from 'debug';
 import { parseExpression } from 'cron-parser';
 import { isValidDate } from './isValidDate';

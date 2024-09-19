@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "cron-parser": "^4.5.0",
-    "date.js": "~0.3.3",
+    "date.js": "^0.3.3",
     "debug": "~4.3.4",
     "human-interval": "~2.0.1",
     "luxon": "^3.2.1",
