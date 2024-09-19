@@ -1,4 +1,4 @@
-import * as date from 'date.js';
+import date from 'date.js';
 import debug from 'debug';
 import { ObjectId } from 'mongodb';
 import { ChildProcess, fork } from 'child_process';

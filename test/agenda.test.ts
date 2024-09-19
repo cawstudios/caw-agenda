@@ -1,6 +1,6 @@
 /* eslint-disable no-console,no-unused-expressions,@typescript-eslint/no-unused-expressions */
 
-import * as delay from 'delay';
+import delay from 'delay';
 import { Db } from 'mongodb';
 import { expect } from 'chai';
 import { mockMongo } from './helpers/mock-mongodb';

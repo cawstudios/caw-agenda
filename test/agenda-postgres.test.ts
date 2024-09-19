@@ -1,6 +1,6 @@
 /* eslint-disable no-console,no-unused-expressions,@typescript-eslint/no-unused-expressions */
 
-import * as delay from 'delay';
+import delay from 'delay';
 import { Pool } from 'pg';
 import { mockPostgres } from './helpers/mock-postgresdb';
 

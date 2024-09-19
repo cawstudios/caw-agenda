@@ -6,7 +6,7 @@ import * as assert from 'node:assert';
 import { DateTime } from 'luxon';
 import { Db } from 'mongodb';
 
-import * as delay from 'delay';
+import delay from 'delay';
 import { Agenda, Job } from '../src';
 import { mockMongo } from './helpers/mock-mongodb';
 import { fail } from 'assert';

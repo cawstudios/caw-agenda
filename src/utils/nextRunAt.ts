@@ -5,7 +5,7 @@ import debug from 'debug';
 import { parseExpression } from 'cron-parser';
 import { isValidDate } from './isValidDate';
 import type { IJobParameters } from '../jobs/interfaces/job-parameters';
-import humanInterval = require('human-interval');
+import humanInterval from 'human-interval';
 
 const log = debug('agenda:nextRunAt');
 

@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as assert from 'node:assert';
 import { DateTime } from 'luxon';
 
-import * as delay from 'delay';
+import delay from 'delay';
 import { Agenda, Job } from '../src';
 import { fail } from 'assert';
 import someJobDefinition from './fixtures/someJobDefinition';
