@@ -21,8 +21,9 @@
 		"resolveJsonModule": true,
 		"sourceMap": true,
 		"isolatedModules": false,
-		"declaration": true
+		"declaration": true,
+		"esModuleInterop": true
 	},
 	"exclude": ["node_modules", "**/__tests__"],
-	"include": ["./src"]
+	"include": ["src"]
 }

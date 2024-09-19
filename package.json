@@ -16,7 +16,7 @@
   "scripts": {
     "release": "npm run build && standard-version",
     "prepublishOnly": "npm run build",
-    "build": "tsc",
+    "build": "tsc && cp src/datasource/postgres/schema.sql dist/datasource/postgres/",
     "test": "npm run mocha",
     "lint": "eslint src",
     "lint-fix": "eslint src --fix",
