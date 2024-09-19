@@ -12,15 +12,19 @@ export const isValidMongoConfig = (config: any): config is IMongoOptions => {
 export const isValidPostgresConfig = (config: any): config is IPostgresOptions => {
     return (
         ('postgres' in config && typeof config.postgres === 'object') ||
-        ('connectionString' in config && typeof config.connectionString === 'string') ||
         (
             'db' in config &&
             typeof config.db === 'object' &&
-            'host' in config.db &&
-            'port' in config.db &&
-            'database' in config.db &&
-            'user' in config.db &&
-            'password' in config.db
+            (
+                ('connectionString' in config.db && typeof config.db.connectionString === 'string') ||
+                (
+                    'host' in config.db &&
+                    'port' in config.db &&
+                    'database' in config.db &&
+                    'user' in config.db &&
+                    'password' in config.db
+                )
+            )
         )
     );
 }
