@@ -2,7 +2,6 @@
   "name": "@cawstudios/agenda",
   "version": "1.0.0",
   "description": "Light weight job scheduler for Node.js",
-  "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
