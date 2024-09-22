@@ -2,20 +2,17 @@
   "name": "@cawstudios/agenda",
   "version": "1.0.0",
   "description": "Light weight job scheduler for Node.js",
+  "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "scripts": {
     "release": "npm run build && standard-version",
-    "prepublishOnly": "npm run build",
     "build": "tsc && cp src/datasource/postgres/schema.sql dist/datasource/postgres/",
     "test": "npm run mocha",
     "lint": "eslint src",
@@ -25,7 +22,9 @@
     "mocha-debug": "DEBUG=agenda:**,-agenda:internal:** mocha --reporter spec -b",
     "mocha-debug-internal": "DEBUG=agenda:internal:** mocha --reporter spec -b",
     "mocha-debug-all": "DEBUG=agenda:** mocha --reporter spec -b",
-    "docs": "typedoc --out docs/agenda/6.x src/index.ts"
+    "docs": "typedoc --out docs/agenda/6.x src/index.ts",
+    "prepare": "npm run build",
+    "version": "npm run build && git add -A dist"
   },
   "config": {
     "blanket": {
