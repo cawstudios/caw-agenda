@@ -26,11 +26,11 @@ const jobProcessor = () => {};
 // connection string to postgres
 const postgresCfg = {
 	db: {
-		user: 'postgres',
-		password: 'root',
-		host: 'localhost',
+		user: process.env.POSTGRES_USER || 'postgres',
+		password: process.env.POSTGRES_PASSWORD || 'root',
+		host: process.env.POSTGRES_HOST || 'localhost',
 		port: 5432,
-		database: 'celito-local',
+		database: process.env.POSTGRES_DB || 'local',
 		ssl: false,
 		schema: 'agendaJobs',
 		tableName: 'CronJobs'

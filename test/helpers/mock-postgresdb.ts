@@ -5,7 +5,7 @@ import debug from 'debug';
 const log = debug('agenda:mock-postgres');
 const schema = 'agendaJobs';
 const tableName = 'CronJobs';
-const uri = 'postgresql://postgres:root@localhost:5432/celito-local';
+const uri = `postgresql://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`;
 
 export interface IMockPostgres {
     disconnect: () => void;
