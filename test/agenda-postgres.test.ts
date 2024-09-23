@@ -27,7 +27,7 @@ const clearJobs = async (): Promise<void> => {
 		try {
 			await postgresPool.query(`
 				BEGIN;
-				DELETE FROM "${postgresCfg.schema}"."${postgresCfg.tableName}RunHistory";
+				DELETE FROM "${postgresCfg.schema}"."${postgresCfg.tableName}ExecutionLog";
 				DELETE FROM "${postgresCfg.schema}"."${postgresCfg.tableName}";
 				COMMIT;
 			`);	

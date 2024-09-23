@@ -16,6 +16,7 @@ import type { IJobParameters } from '../../jobs/interfaces/job-parameters';
 import { hasMongoProtocol } from '../utils/utils';
 import type { IJobRepository } from '../interfaces/job-repository.interface';
 import type { QueryCondition } from '../../types/query.type';
+import { JobExecutionLog } from '../../jobs/interfaces/job-execution-log';
 
 const log = debug('agenda:db');
 
@@ -24,7 +25,7 @@ const log = debug('agenda:db');
  */
 export class MongoJobRepository implements IJobRepository {
 	collection: Collection<IJobParameters>;
-
+	private executionLogCollection: Collection<JobExecutionLog>;
 	constructor(
 		private agenda: Agenda,
 		private connectOptions: IMongoOptions & IDatabaseOptions
@@ -228,8 +229,11 @@ export class MongoJobRepository implements IJobRepository {
 		log('successful connection to MongoDB', db.options);
 
 		const collection = this.connectOptions.db?.collection || 'agendaJobs';
+		const executionLogCollection = `${collection}ExecutionLog`;
 
 		this.collection = db.collection(collection);
+		this.executionLogCollection = db.collection(executionLogCollection);
+
 		if (log.enabled) {
 			log(
 				`connected with collection: ${collection}, collection size: ${
@@ -329,22 +333,16 @@ export class MongoJobRepository implements IJobRepository {
 		}
 		
 		if (job.attrs.lastRunAt && job.attrs.lastFinishedAt) {
-			const runHistory = job.attrs.runHistory || [];
-			runHistory.push({
+			const executionLog = {
+				jobId: id!.toHexString(),
 				runAt: job.attrs.lastRunAt,
 				finishedAt: job.attrs.lastFinishedAt,
 				result: job.attrs.failReason ? 'fail' : 'success',
 				error: job.attrs.failReason || null
-			});
-
-			if (runHistory.length) {
-				await this.collection.updateOne(
-					{ _id: id, name: job.attrs.name },
-					{
-						$set: { runHistory }
-					}
-				);	
-			}
+			};
+		
+			await this.executionLogCollection.insertOne(executionLog as any);	
+			log('Job execution log saved for job %s', id!.toHexString());
 		}
 	}
 
@@ -600,5 +598,11 @@ export class MongoJobRepository implements IJobRepository {
 	
 		results.unshift(totals);
 		return results;
+	}
+
+	async getJobExecutionLog(jobId: string): Promise<JobExecutionLog[]> {
+		const query = { jobId };
+		const logs = await this.executionLogCollection.find(query).toArray();
+		return logs || [];
 	}
 }

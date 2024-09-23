@@ -1,7 +1,7 @@
 import { Filter, ObjectId } from 'mongodb';
 
 export interface IJobParameters<DATA = unknown | void> {
-	runHistory?: Array<{
+	executionLog?: Array<{
 		runAt: Date;
 		finishedAt: Date;
 		result: 'success' | 'fail';

@@ -9,6 +9,7 @@ import { IJobRepository } from '../interfaces/job-repository.interface';
 import { QueryCondition } from '../../types/query.type';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { JobExecutionLog } from '../../jobs/interfaces/job-execution-log';
 
 const log = debug('agenda:db');
 
@@ -282,7 +283,7 @@ export class PostgresJobRepository implements IJobRepository {
 
     if (job.attrs.lastRunAt && job.attrs.lastFinishedAt) {
       const insertHistoryQuery = `
-        INSERT INTO "${this.schema}"."${this.tableName}RunHistory" (job_id, run_at, finished_at, result, error)
+        INSERT INTO "${this.schema}"."${this.tableName}ExecutionLog" ("jobId", "runAt", "finishedAt", "result", "error")
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
       `;
@@ -297,6 +298,9 @@ export class PostgresJobRepository implements IJobRepository {
 
       const result = await this.pool.query(insertHistoryQuery, insertHistoryValues);
       log('[%s]job run history saved to PostgreSQL', job.attrs._id || job.attrs['id'], result.rows[0]);
+    
+      await this.getJobExecutionLog(job.attrs._id || job.attrs['id']);
+      log('Job execution log saved for job %s', job.attrs._id || job.attrs['id']);
     }
   }
 
@@ -496,5 +500,13 @@ export class PostgresJobRepository implements IJobRepository {
   
     results.rows.unshift(totals);
     return results.rows;
+  }
+
+  async getJobExecutionLog(jobId: string): Promise<JobExecutionLog[]> {
+    const query = `
+      SELECT * FROM "${this.schema}"."${this.tableName}ExecutionLog" WHERE "jobId" = $1
+    `;
+    const result = await this.pool.query(query, [jobId]);
+    return result.rows;
   }
 }

@@ -1,6 +1,7 @@
 import type { Job, JobWithId } from '../../jobs/job';
 import type { IJobParameters } from '../../jobs/interfaces/job-parameters';
 import { QueryCondition } from '../../types/query.type';
+import { JobExecutionLog } from '../../jobs/interfaces/job-execution-log';
 
 export interface IJobRepository {
   connect(): Promise<void>;
@@ -22,4 +23,5 @@ export interface IJobRepository {
   getNextJobToRun(jobName: string, nextScanAt: Date, lockDeadline: Date, now?: Date): Promise<IJobParameters | undefined>;
 
   getOverview(): Promise<any[]>;
+  getJobExecutionLog(jobId: string): Promise<JobExecutionLog[]>;
 }

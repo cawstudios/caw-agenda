@@ -566,4 +566,8 @@ export class Agenda extends EventEmitter {
 
 		this.jobProcessor = undefined;
 	}
+
+	async getJobExecutionLog(jobId: string): Promise<any[]> {
+		return this.db.getJobExecutionLog(jobId);
+	}
 }
