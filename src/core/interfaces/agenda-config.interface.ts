@@ -1,7 +1,7 @@
 export interface IAgendaConfig {
 	name?: string;
 
-	defaultConcurrency: number;
+	defaultConcurrency?: number;
 
 	processEvery: number;
 

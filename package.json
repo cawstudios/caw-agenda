@@ -1,22 +1,18 @@
 {
-  "name": "agenda",
-  "version": "5.0.0",
+  "name": "@cawstudios/agenda",
+  "version": "1.0.0",
   "description": "Light weight job scheduler for Node.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "scripts": {
     "release": "npm run build && standard-version",
-    "prepublishOnly": "npm run build",
-    "build": "tsc",
+    "build": "tsc && cp src/datasource/postgres/schema.sql dist/datasource/postgres/",
     "test": "npm run mocha",
     "lint": "eslint src",
     "lint-fix": "eslint src --fix",
@@ -25,7 +21,9 @@
     "mocha-debug": "DEBUG=agenda:**,-agenda:internal:** mocha --reporter spec -b",
     "mocha-debug-internal": "DEBUG=agenda:internal:** mocha --reporter spec -b",
     "mocha-debug-all": "DEBUG=agenda:** mocha --reporter spec -b",
-    "docs": "typedoc --out docs/agenda/6.x src/index.ts"
+    "docs": "typedoc --out docs/agenda/6.x src/index.ts",
+    "prepare": "npm run build",
+    "version": "npm run build && git add -A dist"
   },
   "config": {
     "blanket": {
@@ -35,7 +33,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/hokify/agenda"
+    "url": "https://github.com/cawstudios/caw-agenda"
   },
   "keywords": [
     "job",
@@ -48,19 +46,19 @@
   "author": "Simon Tretter <simon.tretter@hokify.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/hokify/agenda/issues"
+    "url": "https://github.com/cawstudios/caw-agenda/issues"
   },
   "dependencies": {
     "cron-parser": "^4.5.0",
-    "date.js": "~0.3.3",
+    "date.js": "^0.3.3",
     "debug": "~4.3.4",
     "human-interval": "~2.0.1",
     "luxon": "^3.2.1",
-    "mongodb": "^4.8.1"
+    "mongodb": "^4.8.1",
+    "pg": "^8.12.0",
+    "pg-mem": "^3.0.2"
   },
   "devDependencies": {
-    "eslint": "^8.21.0",
-    "prettier": "^2.7.1",
     "@hokify/eslint-config": "^2.3.2",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@types/chai": "^4.3.1",
@@ -69,12 +67,16 @@
     "@types/luxon": "^3.0.0",
     "@types/mocha": "^9.1.1",
     "@types/node": "^18.6.3",
+    "@types/pg": "^8.11.10",
     "@types/sinon": "^10.0.13",
+    "@types/uuid": "^10.0.0",
     "chai": "^4.3.6",
     "delay": "5.0.0",
+    "eslint": "^8.21.0",
     "mocha": "10.0.0",
     "mongodb-memory-server": "^8.8.0",
     "nyc": "^15.1.0",
+    "prettier": "^2.7.1",
     "sinon": "14.0.0",
     "standard-version": "^9.5.0",
     "ts-node": "^10.9.1",

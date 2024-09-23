@@ -5,6 +5,7 @@ import { expect } from 'chai';
 import { Db } from 'mongodb';
 import { Agenda } from '../src';
 import { mockMongo } from './helpers/mock-mongodb';
+import { DataSource } from '../src/datasource/enums/data-source.enum';
 
 // Create agenda instances
 let agenda: Agenda;
@@ -30,7 +31,10 @@ describe('JobProcessor', () => {
 		return new Promise(resolve => {
 			agenda = new Agenda(
 				{
-					mongo: mongoDb,
+					dataSource: DataSource.MONGO,
+					dataSourceOptions: {
+						mongo: mongoDb,
+					},
 					maxConcurrency: 4,
 					defaultConcurrency: 1,
 					lockLimit: 15,

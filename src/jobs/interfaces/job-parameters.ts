@@ -1,6 +1,12 @@
 import { Filter, ObjectId } from 'mongodb';
 
 export interface IJobParameters<DATA = unknown | void> {
+	executionLog?: Array<{
+		runAt: Date;
+		finishedAt: Date;
+		result: 'success' | 'fail';
+		error: string | null;
+	}>;
 	_id?: ObjectId;
 
 	name: string;

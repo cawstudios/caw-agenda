@@ -1,12 +1,12 @@
-import * as date from 'date.js';
-import * as debug from 'debug';
+import date from 'date.js';
+import debug from 'debug';
 import { ObjectId } from 'mongodb';
 import { ChildProcess, fork } from 'child_process';
-import type { Agenda } from './index';
-import type { DefinitionProcessor } from './types/JobDefinition';
-import { IJobParameters, datefields, TJobDatefield } from './types/JobParameters';
-import { JobPriority, parsePriority } from './utils/priority';
-import { computeFromInterval, computeFromRepeatAt } from './utils/nextRunAt';
+import type { Agenda } from '../index';
+import type { DefinitionProcessor } from './interfaces/job-definition';
+import { IJobParameters, datefields, TJobDatefield } from './interfaces/job-parameters';
+import { JobPriority, parsePriority } from '../utils/priority';
+import { computeFromInterval, computeFromRepeatAt } from '../utils/nextRunAt';
 
 const log = debug('agenda:job');
 
@@ -35,7 +35,7 @@ export class Job<DATA = unknown | void> {
 		if (this.forkedChild) {
 			try {
 				this.forkedChild.send('cancel');
-				console.info('canceled child', this.attrs.name, this.attrs._id);
+				console.info('canceled child', this.attrs.name, this.attrs._id || this.attrs['id']);
 			} catch (err) {
 				console.log('cannot send cancel to child');
 			}
@@ -213,14 +213,14 @@ export class Job<DATA = unknown | void> {
 		log(
 			'[%s:%s] fail() called [%d] times so far',
 			this.attrs.name,
-			this.attrs._id,
+			this.attrs._id || this.attrs['id'],
 			this.attrs.failCount
 		);
 		return this;
 	}
 
 	private async fetchStatus(): Promise<void> {
-		const dbJob = await this.agenda.db.getJobs({ _id: this.attrs._id });
+		const dbJob = await this.agenda.db.getJobs({ _id: { '=': this.attrs._id || this.attrs['id'] } });
 		if (!dbJob || dbJob.length === 0) {
 			// @todo: should we just return false instead? a finished job could have been removed from database,
 			// and then this would throw...
@@ -275,14 +275,14 @@ export class Job<DATA = unknown | void> {
 		}
 		// ensure db connection is ready
 		await this.agenda.ready;
-		return this.agenda.db.saveJob(this as Job);
+		return await this.agenda.db.saveJob(this as Job);
 	}
 
 	/**
 	 * Remove the job from database
 	 */
 	remove(): Promise<number> {
-		return this.agenda.cancel({ _id: this.attrs._id });
+		return this.agenda.cancel({ _id: { '=': this.attrs._id || this.attrs['id'] } });
 	}
 
 	async isDead(): Promise<boolean> {
@@ -346,6 +346,7 @@ export class Job<DATA = unknown | void> {
 			}
 		} catch (error: any) {
 			this.attrs.nextRunAt = null;
+			log("COMPUTE NEXT RUN AT ERROR", error);
 			this.fail(error);
 		}
 
@@ -379,7 +380,7 @@ export class Job<DATA = unknown | void> {
 						forkHelper.path,
 						[
 							this.attrs.name,
-							this.attrs._id!.toString(),
+							(this.attrs._id || this.attrs['id'])!.toString(),
 							this.agenda.definitions[this.attrs.name].filePath || ''
 						],
 						forkHelper.options

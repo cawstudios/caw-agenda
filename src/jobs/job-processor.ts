@@ -1,15 +1,15 @@
-import * as debug from 'debug';
-import type { IAgendaJobStatus, IAgendaStatus } from './types/AgendaStatus';
-import type { IJobDefinition } from './types/JobDefinition';
-import type { Agenda, JobWithId } from './index';
-import type { IJobParameters } from './types/JobParameters';
-import { Job } from './Job';
-import { JobProcessingQueue } from './JobProcessingQueue';
+import debug from 'debug';
+import type { IAgendaJobStatus, IAgendaStatus } from '../core/interfaces/agenda-status.interface';
+import type { IJobDefinition } from './interfaces/job-definition';
+import type { Agenda, JobWithId } from '../index';
+import type { IJobParameters } from './interfaces/job-parameters';
+import { Job } from './job';
+import { JobProcessingQueue } from './job-processing-queue';
 
 const log = debug('agenda:jobProcessor');
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires,global-require
-const { version: agendaVersion } = require('../package.json');
+const { version: agendaVersion } = require('../../package.json');
 
 const MAX_SAFE_32BIT_INTEGER = 2 ** 31; // Math.pow(2,31);
 
@@ -387,7 +387,6 @@ export class JobProcessor {
 
 			// Check if there is any job that is not blocked by concurrency
 			const job = this.jobQueue.returnNextConcurrencyFreeJob(this.jobStatus, handledJobs);
-
 			if (!job) {
 				log.extend('jobProcessing')('[%s:%s] there is no job to process');
 				return;
@@ -429,7 +428,7 @@ export class JobProcessor {
 						if (lockedJobIndex === -1) {
 							// lookup by id
 							lockedJobIndex = this.lockedJobs.findIndex(
-								j => j.attrs._id?.toString() === job.attrs._id?.toString()
+								j => (j.attrs._id?.toString() === job.attrs._id?.toString() || j.attrs['id']?.toString() === job.attrs['id']?.toString())
 							);
 						}
 						if (lockedJobIndex === -1) {
@@ -462,7 +461,7 @@ export class JobProcessor {
 				}
 			}
 
-			handledJobs.push(job.attrs._id);
+			handledJobs.push(job.attrs._id || job.attrs['id']);
 
 			if (job && this.localQueueProcessing < this.maxConcurrency) {
 				// additionally run again and check if there are more jobs that we can process right now (as long concurrency not reached)
@@ -589,7 +588,7 @@ export class JobProcessor {
 				if (runningJobIndex === -1) {
 					// lookup by id
 					runningJobIndex = this.runningJobs.findIndex(
-						j => j.attrs._id?.toString() === job.attrs._id?.toString()
+						j => (j.attrs._id?.toString() === job.attrs._id?.toString() || j.attrs['id']?.toString() === job.attrs['id']?.toString())
 					);
 				}
 				if (runningJobIndex === -1) {
@@ -604,7 +603,7 @@ export class JobProcessor {
 				if (lockedJobIndex === -1) {
 					// lookup by id
 					lockedJobIndex = this.lockedJobs.findIndex(
-						j => j.attrs._id?.toString() === job.attrs._id?.toString()
+						j => (j.attrs._id?.toString() === job.attrs._id?.toString() || j.attrs['id']?.toString() === job.attrs['id']?.toString())
 					);
 				}
 				if (lockedJobIndex === -1) {
