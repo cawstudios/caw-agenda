@@ -42,7 +42,7 @@ const jobTimeout = 500;
 const jobType = 'do work';
 const jobProcessor = () => {};
 
-describe.skip('Agenda with PostgreSQL', () => {
+describe('Agenda with PostgreSQL', () => {
 
 	beforeEach(async () => {
 		if (!postgresPool) {
