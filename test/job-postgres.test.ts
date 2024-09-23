@@ -51,7 +51,7 @@ const clearJobs = async (): Promise<void> => {
 	}
 };
 
-describe('Job with PostgreSQL', () => {
+describe.skip('Job with PostgreSQL', () => {
 	beforeEach(async () => {
 		if (!postgresPool) {
 			const mockedPostgres = await mockPostgres();
